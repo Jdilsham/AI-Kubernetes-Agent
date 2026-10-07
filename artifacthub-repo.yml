@@ -1,5 +1,5 @@
 # https://artifacthub.io/docs/topics/repositories/#artifacthub-repoyml
-repositoryID: ""   # filled in by Artifact Hub when the repository is added
+repositoryID: ab6e2583-ee19-4538-b285-90104d69db80
 owners:
   - name: Jdilsham
-    github: Jdilsham
+    email: 154776437+Jdilsham@users.noreply.github.com
