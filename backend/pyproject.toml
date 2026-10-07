@@ -1,0 +1,13 @@
+[tool.ruff]
+line-length = 160
+target-version = "py312"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP"]
+ignore = ["B008"]  # FastAPI Depends/Header/Query defaults
+
+[tool.ruff.lint.per-file-ignores]
+"app/ai/prompt_builder.py" = ["E501"]  # the LLM prompt is prose
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

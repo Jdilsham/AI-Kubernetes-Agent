@@ -1,0 +1,69 @@
+{{- $sel := dict "root" . "component" "frontend" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent.fullname" . }}-frontend
+  labels: {{- include "agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels: {{- include "agent.selector" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "agent.selector" $sel | nindent 8 }}
+    spec:
+      automountServiceAccountToken: false   # the UI never talks to the Kubernetes API
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "agent.podSecurity" . | nindent 8 }}
+      containers:
+        - name: frontend
+          image: {{ include "agent.image" (dict "image" .Values.frontend.image "root" .) }}
+          imagePullPolicy: {{ .Values.frontend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 8080
+          env:
+            - name: BACKEND_URL
+              value: http://{{ include "agent.fullname" . }}-backend:9000
+          readinessProbe:
+            httpGet: { path: /, port: http }
+            periodSeconds: 10
+          securityContext:
+            {{- include "agent.containerSecurity" . | nindent 12 }}
+          resources: {{- toYaml .Values.frontend.resources | nindent 12 }}
+          volumeMounts:   # nginx writes its rendered config and temp files here
+            - name: nginx-conf
+              mountPath: /etc/nginx/conf.d
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nginx-conf
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.frontend.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.frontend.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.frontend.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent.fullname" . }}
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  selector: {{- include "agent.selector" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: {{ .Values.service.port }}
+      targetPort: http

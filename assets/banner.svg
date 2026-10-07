@@ -1,0 +1,26 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1200" height="320" viewBox="0 0 1200 320">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="0.55" stop-color="#1e3a8a"/>
+      <stop offset="1" stop-color="#326ce5"/>
+    </linearGradient>
+  </defs>
+  <rect width="1200" height="320" rx="24" fill="url(#bg)"/>
+  <g stroke="#ffffff" stroke-opacity="0.08" stroke-width="1">
+    <path d="M0 80H1200M0 160H1200M0 240H1200M200 0V320M400 0V320M600 0V320M800 0V320M1000 0V320"/>
+  </g>
+  <!-- helm wheel -->
+  <g transform="translate(1000 160)" fill="none" stroke="#ffffff" stroke-opacity="0.9" stroke-width="10" stroke-linecap="round">
+    <circle r="70"/>
+    <circle r="16" fill="#ffffff" fill-opacity="0.9"/>
+    <path d="M0-70V-110M0 70V110M-70 0H-110M70 0H110M49-49L78-78M-49 49L-78 78M49 49L78 78M-49-49L-78-78"/>
+  </g>
+  <!-- AI nodes -->
+  <g fill="#38bdf8">
+    <circle cx="880" cy="60" r="7"/><circle cx="930" cy="262" r="7"/><circle cx="1130" cy="70" r="7"/>
+  </g>
+  <text x="70" y="140" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#ffffff">AI Kubernetes</text>
+  <text x="70" y="208" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="58" font-weight="700" fill="#7dd3fc">Troubleshooting Agent</text>
+  <text x="70" y="262" font-family="Segoe UI, Helvetica, Arial, sans-serif" font-size="24" fill="#cbd5e1">• Investigate • Diagnose • Fix - powered by LLMs</text>
+</svg>

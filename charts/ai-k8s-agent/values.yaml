@@ -1,0 +1,71 @@
+# -- LLM used for the diagnosis: any OpenAI-compatible API (OpenRouter, OpenAI, Gemini, Ollama, vLLM, ...)
+llm:
+  baseUrl: https://openrouter.ai/api/v1
+  model: ""            # e.g. nvidia/nemotron-3-super-120b-a12b:free
+  apiKey: ""           # stored in a Secret; or use existingSecret
+  existingSecret: ""   # Secret with key `llm-api-key`
+  timeoutSeconds: 120  # large clusters + free models can take over a minute
+
+# -- Login for the web UI
+auth:
+  mode: password       # "password" or "none" (only behind your own SSO/ingress auth)
+  adminPassword: ""    # empty = random password generated on install (see NOTES)
+  existingSecret: ""   # Secret with keys `admin-password` and `secret-key`
+
+# -- What the agent may read. Everything is read-only.
+rbac:
+  create: true
+  scope: cluster       # "cluster" = all namespaces, "namespace" = only the release namespace
+  # Secrets: list access lets the agent detect missing/expired TLS secrets, image pull secrets and Helm releases.
+  # Kubernetes cannot grant "names only", so this is off by default. The agent never sends secret values anywhere.
+  readSecrets: false
+
+serviceAccount:
+  create: true
+  name: ""
+  annotations: {}
+
+# -- Investigation history (SQLite)
+persistence:
+  enabled: true
+  size: 1Gi
+  storageClass: ""     # empty = cluster default
+  accessMode: ReadWriteOnce
+
+backend:
+  image:
+    repository: ghcr.io/jdilsham/ai-k8s-agent-backend
+    tag: ""            # defaults to the chart appVersion
+    pullPolicy: IfNotPresent
+  resources:
+    requests: { cpu: 100m, memory: 256Mi }
+    limits: { memory: 512Mi }
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+frontend:
+  image:
+    repository: ghcr.io/jdilsham/ai-k8s-agent-frontend
+    tag: ""
+    pullPolicy: IfNotPresent
+  resources:
+    requests: { cpu: 20m, memory: 32Mi }
+    limits: { memory: 128Mi }
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+
+service:
+  type: ClusterIP
+  port: 80
+
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  host: k8s-agent.example.com
+  tls: []              # - secretName: k8s-agent-tls
+
+imagePullSecrets: []

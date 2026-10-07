@@ -1,0 +1,13 @@
+apiVersion: v2
+name: ai-k8s-agent
+description: AI-powered Kubernetes troubleshooting agent. Collects read-only cluster evidence and explains root causes and fixes.
+type: application
+version: 0.1.0
+appVersion: "0.1.0"
+icon: https://raw.githubusercontent.com/Jdilsham/AI-Kubernetes-Agent/main/assets/icon.svg
+keywords: [kubernetes, troubleshooting, ai, llm, sre, diagnostics]
+home: https://github.com/Jdilsham/AI-Kubernetes-Agent
+sources: [https://github.com/Jdilsham/AI-Kubernetes-Agent]
+maintainers:
+  - name: Jdilsham
+    url: https://github.com/Jdilsham

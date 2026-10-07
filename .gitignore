@@ -1,0 +1,27 @@
+
+# AI agent tool folders
+.insforge
+.agent
+.agents
+.augment
+.cline
+.github/copilot*
+.kilocode
+.qoder
+.qwen
+.roo
+.trae
+.windsurf
+
+# Secrets
+.env.local
+
+# Project
+node_modules/
+dist/
+__pycache__/
+*.pyc
+.venv/
+.env
+# Local SQLite history (dev)
+backend/data/

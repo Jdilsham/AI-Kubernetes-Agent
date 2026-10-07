@@ -1,0 +1,24 @@
+AI Kubernetes Agent is installed.
+
+1. Open the UI:
+{{- if .Values.ingress.enabled }}
+   http{{ if .Values.ingress.tls }}s{{ end }}://{{ .Values.ingress.host }}
+{{- else }}
+   kubectl port-forward -n {{ .Release.Namespace }} svc/{{ include "agent.fullname" . }} 8080:{{ .Values.service.port }}
+   then browse to http://localhost:8080
+{{- end }}
+
+{{- if eq .Values.auth.mode "password" }}
+
+2. Admin password:
+   kubectl get secret -n {{ .Release.Namespace }} {{ .Values.auth.existingSecret | default (include "agent.secretName" .) }} -o jsonpath='{.data.admin-password}' | base64 -d; echo
+{{- end }}
+
+{{- if not (or .Values.llm.apiKey .Values.llm.existingSecret) }}
+
+WARNING: no LLM API key is set. Evidence is collected, but no AI diagnosis is produced.
+   helm upgrade {{ .Release.Name }} <chart> -n {{ .Release.Namespace }} --reuse-values --set llm.apiKey=<key> --set llm.model=<model>
+{{- end }}
+
+Access: read-only, {{ if eq .Values.rbac.scope "cluster" }}all namespaces{{ else }}namespace {{ .Release.Namespace }} only{{ end }}{{ if not .Values.rbac.readSecrets }}, no Secret access{{ end }}.
+Data sent to the LLM provider ({{ .Values.llm.baseUrl }}): pod status, redacted log lines, events and resource specs (never Secret values).

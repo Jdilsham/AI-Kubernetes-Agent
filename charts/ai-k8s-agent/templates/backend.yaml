@@ -1,0 +1,114 @@
+{{- $sel := dict "root" . "component" "backend" }}
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "agent.fullname" . }}-backend
+  labels: {{- include "agent.labels" . | nindent 4 }}
+    app.kubernetes.io/component: backend
+spec:
+  replicas: 1   # SQLite history + in-process jobs: run a single replica
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels: {{- include "agent.selector" $sel | nindent 6 }}
+  template:
+    metadata:
+      labels: {{- include "agent.selector" $sel | nindent 8 }}
+      annotations:
+        checksum/secret: {{ include (print $.Template.BasePath "/secret.yaml") . | sha256sum }}
+    spec:
+      serviceAccountName: {{ include "agent.serviceAccountName" . }}
+      {{- with .Values.imagePullSecrets }}
+      imagePullSecrets: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      securityContext:
+        {{- include "agent.podSecurity" . | nindent 8 }}
+        fsGroup: 10001
+      containers:
+        - name: backend
+          image: {{ include "agent.image" (dict "image" .Values.backend.image "root" .) }}
+          imagePullPolicy: {{ .Values.backend.image.pullPolicy }}
+          ports:
+            - name: http
+              containerPort: 9000
+          env:
+            - name: HOME
+              value: /tmp   # kubectl cache (root filesystem is read-only)
+            - name: DATA_DIR
+              value: /data
+            - name: AUTH_MODE
+              value: {{ .Values.auth.mode | quote }}
+            - name: ADMIN_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret | default (include "agent.secretName" .) }}
+                  key: admin-password
+            - name: SECRET_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.auth.existingSecret | default (include "agent.secretName" .) }}
+                  key: secret-key
+            - name: OPENROUTER_BASE_URL
+              value: {{ .Values.llm.baseUrl | quote }}
+            - name: OPENROUTER_MODEL
+              value: {{ .Values.llm.model | quote }}
+            - name: OPENROUTER_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.llm.existingSecret | default (include "agent.secretName" .) }}
+                  key: llm-api-key
+            - name: LLM_TIMEOUT_SECONDS
+              value: {{ .Values.llm.timeoutSeconds | quote }}
+            {{- if eq .Values.rbac.scope "namespace" }}
+            - name: ALLOWED_NAMESPACE
+              value: {{ .Release.Namespace }}
+            {{- end }}
+            {{- with .Values.backend.extraEnv }}
+            {{- toYaml . | nindent 12 }}
+            {{- end }}
+          readinessProbe:
+            httpGet: { path: /health, port: http }
+            periodSeconds: 10
+          livenessProbe:
+            httpGet: { path: /health, port: http }
+            initialDelaySeconds: 10
+            periodSeconds: 20
+          securityContext:
+            {{- include "agent.containerSecurity" . | nindent 12 }}
+          resources: {{- toYaml .Values.backend.resources | nindent 12 }}
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: data
+          {{- if .Values.persistence.enabled }}
+          persistentVolumeClaim:
+            claimName: {{ include "agent.fullname" . }}-data
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
+        - name: tmp
+          emptyDir: {}
+      {{- with .Values.backend.nodeSelector }}
+      nodeSelector: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.tolerations }}
+      tolerations: {{- toYaml . | nindent 8 }}
+      {{- end }}
+      {{- with .Values.backend.affinity }}
+      affinity: {{- toYaml . | nindent 8 }}
+      {{- end }}
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ include "agent.fullname" . }}-backend
+  labels: {{- include "agent.labels" . | nindent 4 }}
+spec:
+  selector: {{- include "agent.selector" $sel | nindent 4 }}
+  ports:
+    - name: http
+      port: 9000
+      targetPort: http
