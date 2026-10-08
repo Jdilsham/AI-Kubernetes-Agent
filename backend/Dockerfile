@@ -1,6 +1,6 @@
 # kubectl in its own stage: keeps curl/ca-certificates out of the final image entirely.
 FROM debian:bookworm-slim AS kubectl
-ARG KUBECTL_VERSION=v1.33.4
+ARG KUBECTL_VERSION=v1.37.1
 RUN apt-get update && apt-get install -y --no-install-recommends curl ca-certificates \
     && curl -fsSLo /usr/local/bin/kubectl \
        "https://dl.k8s.io/release/${KUBECTL_VERSION}/bin/linux/$(dpkg --print-architecture)/kubectl" \
@@ -22,6 +22,8 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     DATA_DIR=/data
 
 WORKDIR /app
+
+RUN apt-get update && apt-get upgrade -y && rm -rf /var/lib/apt/lists/*
 
 COPY --from=kubectl /usr/local/bin/kubectl /usr/local/bin/kubectl
 COPY --from=deps /install /usr/local

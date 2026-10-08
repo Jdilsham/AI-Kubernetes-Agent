@@ -6,7 +6,7 @@ COPY . .
 RUN npm run build
 
 # Unprivileged nginx: runs as a non-root user and listens on 8080
-FROM nginxinc/nginx-unprivileged:1.27-alpine
+FROM nginxinc/nginx-unprivileged:1.31-alpine
 LABEL org.opencontainers.image.source="https://github.com/Jdilsham/AI-Kubernetes-Agent" \
       org.opencontainers.image.description="AI Kubernetes Agent frontend" \
       org.opencontainers.image.licenses="MIT"
