@@ -17,6 +17,9 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 120
     llm_max_retries: int = 2
 
+    # Per kubectl API request; slow links (Docker Desktop, VPN, remote AKS/EKS) may need more than 10s
+    kubectl_request_timeout_seconds: int = 10
+
     # Auth: "password" (single admin password) or "none" (protect it with your own ingress/SSO)
     auth_mode: str = "password"
     admin_password: str = ""

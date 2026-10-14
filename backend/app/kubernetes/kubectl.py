@@ -22,7 +22,6 @@ def scope_args() -> list[str]:
     return ["-n", ns] if ns else ["-A"]
 
 DEFAULT_TIMEOUT = 20
-REQUEST_TIMEOUT = "5s"  # per API request, so an unreachable cluster fails fast
 
 
 def _last_line(text: str) -> str:
@@ -40,7 +39,7 @@ def run_kubectl(args: list[str], timeout: int = DEFAULT_TIMEOUT) -> dict[str, An
     context = current_context.get()
     if context:
         cmd += ["--context", context]
-    cmd += [f"--request-timeout={REQUEST_TIMEOUT}", *args]
+    cmd += [f"--request-timeout={get_settings().kubectl_request_timeout_seconds}s", *args]
     printable = " ".join(cmd)
     logger.info("Running: {}", printable)
 

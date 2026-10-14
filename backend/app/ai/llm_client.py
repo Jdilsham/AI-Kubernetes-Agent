@@ -1,3 +1,4 @@
+import json
 import time
 
 import httpx
@@ -8,6 +9,21 @@ from app.core.config import get_settings
 
 class LLMError(Exception):
     """Raised when the LLM cannot be reached or returns an unusable answer."""
+
+
+def _post(url: str, body: dict, headers: dict, timeout: int) -> tuple[int, bytes]:
+    """POST and read the whole response within a total deadline.
+
+    OpenRouter sends the 200 header at once, then whitespace keepalives until the model answers. httpx's
+    timeout is per read, so keepalives would reset it forever; enforce a wall-clock limit ourselves."""
+    deadline = time.monotonic() + timeout
+    chunks: list[bytes] = []
+    with httpx.stream("POST", url, json=body, headers=headers, timeout=httpx.Timeout(30, read=30)) as resp:
+        for chunk in resp.iter_bytes():
+            chunks.append(chunk)
+            if time.monotonic() > deadline:
+                raise httpx.ReadTimeout("LLM response exceeded the total time limit")
+        return resp.status_code, b"".join(chunks)
 
 
 def chat_completion(messages: list[dict[str, str]]) -> str:
@@ -28,17 +44,17 @@ def chat_completion(messages: list[dict[str, str]]) -> str:
     last_error = "unknown error"
     for attempt in range(1, settings.llm_max_retries + 2):
         try:
-            resp = httpx.post(url, json=body, headers=headers, timeout=settings.llm_timeout_seconds)
-            if resp.status_code == 429 or resp.status_code >= 500:
-                last_error = f"HTTP {resp.status_code}"  # retryable
-            elif resp.status_code in (401, 403):
+            status, raw = _post(url, body, headers, settings.llm_timeout_seconds)
+            if status == 429 or status >= 500:
+                last_error = f"HTTP {status}"  # retryable
+            elif status in (401, 403):
                 raise LLMError("OpenRouter rejected the API key.\n\nPlease check the LLM API key (llm.apiKey).")
-            elif resp.status_code >= 400:
+            elif status >= 400:
                 raise LLMError(
-                    f"OpenRouter rejected the request (HTTP {resp.status_code}).\n\nPlease check the LLM model name (llm.model)."
+                    f"OpenRouter rejected the request (HTTP {status}).\n\nPlease check the LLM model name (llm.model)."
                 )
             else:
-                return resp.json()["choices"][0]["message"]["content"]
+                return json.loads(raw)["choices"][0]["message"]["content"]
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             last_error = type(exc).__name__
         except (KeyError, IndexError, ValueError) as exc:
