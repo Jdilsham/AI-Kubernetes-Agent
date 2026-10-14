@@ -1,5 +1,5 @@
 import K8sLogo from "./K8sLogo";
-import { STEPS } from "../types/investigation";
+import { parseProgress, STEPS } from "../types/investigation";
 
 interface Props {
   progress: string; // "" = idle
@@ -11,8 +11,9 @@ interface Props {
 
 /** Big Kubernetes steering wheel: click to start, spins while investigating. */
 export default function ProgressRing({ progress, failed, running, onStart, disabled }: Props) {
-  const index = STEPS.findIndex((s) => s.key === progress);
-  const done = progress === "done" && !failed;
+  const { step } = parseProgress(progress);
+  const index = STEPS.findIndex((s) => s.key === step);
+  const done = step === "done" && !failed;
   const percent = done ? 100 : index < 0 ? 2 : Math.round(((index + 0.5) / STEPS.length) * 100);
   const label = done ? "Root Cause Found" : (STEPS[index]?.label ?? "Starting...");
 

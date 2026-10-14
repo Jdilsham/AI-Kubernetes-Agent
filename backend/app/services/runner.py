@@ -33,17 +33,23 @@ def _run(row_id: str, cluster: str | None, namespace: str | None) -> None:
     current_context.set(None if cluster in (None, IN_CLUSTER) else cluster)
     current_namespace.set(namespace)
 
+    commands: list[str] = []  # every kubectl command the AI chose, shown live and kept with the result
+
     def progress(step: str) -> None:
         if row_id in _cancelled:
             raise InvestigationCancelled()
-        store.update(row_id, {"progress": step})
+        if step.startswith("ai|kubectl "):
+            commands.append(step.removeprefix("ai|"))
+            store.update(row_id, {"progress": step, "steps": commands})
+        else:
+            store.update(row_id, {"progress": step})
 
     try:
         data = run_investigation(on_step=progress)
         progress("ai")
         affected = _namespace(data)
         try:
-            diagnosis = analyze_investigation(data)
+            diagnosis = analyze_investigation(data, progress)
         except ClusterUnreachable as exc:
             store.update(row_id, {"status": "failed", "progress": "done", "error": str(exc)})
             return

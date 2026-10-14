@@ -1,5 +1,6 @@
 import json
 import time
+from typing import Any
 
 import httpx
 from loguru import logger
@@ -26,20 +27,15 @@ def _post(url: str, body: dict, headers: dict, timeout: int) -> tuple[int, bytes
         return resp.status_code, b"".join(chunks)
 
 
-def chat_completion(messages: list[dict[str, str]]) -> str:
-    """Call OpenRouter and return the assistant message text (with retries)."""
+def post_chat(body: dict[str, Any]) -> dict[str, Any]:
+    """POST a chat-completions request to the OpenAI-compatible provider and return the parsed response (with retries)."""
     settings = get_settings()
     if not settings.openrouter_api_key or not settings.openrouter_model:
         raise LLMError("AI is not configured.\n\nSet the LLM API key and model (Helm: llm.apiKey and llm.model, or OPENROUTER_API_KEY / OPENROUTER_MODEL).")
 
     url = f"{settings.openrouter_base_url.rstrip('/')}/chat/completions"
     headers = {"Authorization": f"Bearer {settings.openrouter_api_key}"}
-    body = {
-        "model": settings.openrouter_model,
-        "messages": messages,
-        "temperature": 0,
-        "response_format": {"type": "json_object"},
-    }
+    body = {"model": settings.openrouter_model, **body}
 
     last_error = "unknown error"
     for attempt in range(1, settings.llm_max_retries + 2):
@@ -50,14 +46,12 @@ def chat_completion(messages: list[dict[str, str]]) -> str:
             elif status in (401, 403):
                 raise LLMError("OpenRouter rejected the API key.\n\nPlease check the LLM API key (llm.apiKey).")
             elif status >= 400:
-                raise LLMError(
-                    f"OpenRouter rejected the request (HTTP {status}).\n\nPlease check the LLM model name (llm.model)."
-                )
+                raise LLMError(f"OpenRouter rejected the request (HTTP {status}).\n\nPlease check the LLM model name (llm.model).")
             else:
-                return json.loads(raw)["choices"][0]["message"]["content"]
+                return json.loads(raw)
         except (httpx.TimeoutException, httpx.TransportError) as exc:
             last_error = type(exc).__name__
-        except (KeyError, IndexError, ValueError) as exc:
+        except ValueError as exc:
             raise LLMError("Unexpected response format from OpenRouter") from exc
 
         logger.warning("LLM call attempt {} failed: {}", attempt, last_error)
@@ -68,3 +62,12 @@ def chat_completion(messages: list[dict[str, str]]) -> str:
     if last_error == "HTTP 429":
         raise LLMError("The AI model is busy or rate-limited right now. Please try again in a minute.")
     raise LLMError(f"The AI service is unavailable right now ({last_error}). Please try again later.")
+
+
+def chat_completion(messages: list[dict[str, str]]) -> str:
+    """Call the provider and return the assistant message text."""
+    data = post_chat({"messages": messages, "temperature": 0, "response_format": {"type": "json_object"}})
+    try:
+        return data["choices"][0]["message"]["content"]
+    except (KeyError, IndexError, TypeError) as exc:
+        raise LLMError("Unexpected response format from OpenRouter") from exc

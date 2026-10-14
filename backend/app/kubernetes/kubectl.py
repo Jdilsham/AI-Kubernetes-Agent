@@ -48,6 +48,7 @@ def run_kubectl(args: list[str], timeout: int = DEFAULT_TIMEOUT) -> dict[str, An
         "success": False,
         "stdout": "",
         "stderr": "",
+        "stderr_full": "",
         "returncode": None,
     }
     try:
@@ -56,6 +57,7 @@ def run_kubectl(args: list[str], timeout: int = DEFAULT_TIMEOUT) -> dict[str, An
             success=proc.returncode == 0,
             stdout=proc.stdout,
             stderr=_last_line(proc.stderr),
+            stderr_full=proc.stderr.strip()[:1000],
             returncode=proc.returncode,
         )
     except FileNotFoundError:

@@ -67,6 +67,14 @@ Common fixes are built from real cluster data instead of the LLM's guess: wrong 
 
 ## 🧠 How an investigation works
 
+> **Two AI modes.** With a Claude API key (`llm.provider=anthropic`) the AI works as an agent: after the first-look checks below
+> it runs its own read-only `kubectl` commands (`describe`, `logs --previous`, `events`, `top`, ...), reads each result, decides the
+> next command and repeats until it can prove the root cause, then submits the diagnosis. You see every command live in the UI.
+> Commands are checked in code before they run: read-only verbs only, no `delete`/`apply`/`exec`, no following or watching, Secret
+> values never shown, the selected namespace enforced, output size-limited and masked, and a step limit (`llm.agent.maxSteps`).
+> Without a Claude key, the single-prompt flow below is used with any OpenAI-compatible API. Set `llm.agent.mode=loop`
+> (`AGENT_MODE=loop`) to run the same step-by-step investigation with any model that supports tool calling, including free ones.
+
 ```text
 kubectl evidence ──▶ prompt builder ──▶ LLM ──▶ JSON diagnosis ──▶ safety checks ──▶ UI
 ```
@@ -116,9 +124,12 @@ There is no database server. History lives in a **SQLite file** (`/data/agent.db
 
 | Value | Default | Description |
 |---|---|---|
+| `llm.provider` | `openai-compatible` | `anthropic` = Claude investigates in a loop with read-only kubectl (recommended); `openai-compatible` = one prompt |
 | `llm.apiKey` / `llm.existingSecret` | `""` | LLM API key (or a Secret with key `llm-api-key`) |
-| `llm.model` | `""` | Model name, e.g. `nvidia/nemotron-3-super-120b-a12b:free` |
-| `llm.baseUrl` | OpenRouter | Any OpenAI-compatible endpoint: OpenAI, Gemini, Ollama, vLLM, ... |
+| `llm.model` | `""` | Model name, e.g. `nvidia/nemotron-3-super-120b-a12b:free`; with `anthropic`, empty = `claude-sonnet-5-5` |
+| `llm.baseUrl` | OpenRouter | Any OpenAI-compatible endpoint: OpenAI, Gemini, Ollama, vLLM, ... (not used with `anthropic`) |
+| `llm.agent.mode` | `auto` | `auto` (Claude loop with `anthropic`, one prompt otherwise), `loop` (step by step with any tool-calling model) or `single` |
+| `llm.agent.maxSteps` / `llm.agent.effort` | `15` / `medium` | kubectl commands per investigation; how hard Claude thinks per step (`anthropic` only) |
 | `auth.mode` | `password` | `password` or `none` |
 | `auth.adminPassword` | random | Set your own, or read the generated one from the Secret |
 | `rbac.scope` | `cluster` | `cluster` (all namespaces) or `namespace` (only the release namespace) |
@@ -154,7 +165,7 @@ See [`charts/ai-k8s-agent/values.yaml`](charts/ai-k8s-agent/values.yaml) for eve
 ## 🛠️ Local development
 
 ```bash
-cp backend/.env.example backend/.env   # set OPENROUTER_API_KEY, OPENROUTER_MODEL, ADMIN_PASSWORD
+cp backend/.env.example backend/.env   # set ANTHROPIC_API_KEY (or OPENROUTER_API_KEY + OPENROUTER_MODEL) and ADMIN_PASSWORD
 docker compose up --build              # uses your ~/.kube/config
 # UI: http://localhost:3000
 ```

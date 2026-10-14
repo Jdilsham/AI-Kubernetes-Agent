@@ -44,6 +44,8 @@ export interface InvestigationRow {
   diagnosis: Diagnosis | null;
   error: string | null;
   created_at: string;
+  /** kubectl commands the AI chose to run, in order (agent mode) */
+  steps?: string[];
 }
 
 /** Steps in the order the backend reports them. */
@@ -57,3 +59,9 @@ export const STEPS = [
   { key: "ai", label: "AI Reasoning" },
   { key: "done", label: "Root Cause Found" },
 ] as const;
+
+/** While the AI works the backend reports "ai|kubectl describe pod web-1": the step, then what it is doing. */
+export function parseProgress(progress: string): { step: string; activity: string } {
+  const [step, ...rest] = progress.split("|");
+  return { step, activity: rest.join("|") };
+}

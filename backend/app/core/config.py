@@ -17,6 +17,17 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 120
     llm_max_retries: int = 2
 
+    # Claude (Anthropic API). When a key is set, the AI investigates in a loop: it picks read-only kubectl
+    # commands itself, reads the output and decides the next step. Without a key, the OpenRouter path above is used.
+    anthropic_api_key: str = ""
+    anthropic_model: str = "claude-sonnet-5-5"
+    # auto = Claude loop when a Claude key is set, otherwise one prompt; loop = also investigate step by step with
+    # an OpenAI-compatible model (needs a model with tool calling); single = always one prompt
+    agent_mode: str = "auto"
+    agent_max_steps: int = 15  # kubectl commands the AI may run per investigation
+    agent_effort: str = "medium"  # low | medium | high: how hard the model thinks per step
+    agent_timeout_seconds: int = 600  # wall-clock limit for the whole agent run
+
     # Per kubectl API request; slow links (Docker Desktop, VPN, remote AKS/EKS) may need more than 10s
     kubectl_request_timeout_seconds: int = 10
 

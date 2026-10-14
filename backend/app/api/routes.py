@@ -137,7 +137,7 @@ async def investigation_events(row_id: str) -> StreamingResponse:
             row = store.get(row_id)
             if row is None:
                 return
-            state = (row["status"], row["progress"])
+            state = (row["status"], row["progress"], len(row["steps"]))
             if state != last:
                 last, idle = state, 0
                 yield f"data: {json.dumps(row)}\n\n"

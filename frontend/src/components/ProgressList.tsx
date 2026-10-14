@@ -1,11 +1,13 @@
-import { STEPS } from "../types/investigation";
+import { parseProgress, STEPS } from "../types/investigation";
+import { LiveCommands } from "./CommandTrail";
 
-export default function ProgressList({ progress, failed }: { progress: string; failed: boolean }) {
-  const current = STEPS.findIndex((s) => s.key === progress);
-  const finished = progress === "done" && !failed;
+export default function ProgressList({ progress, failed, steps = [] }: { progress: string; failed: boolean; steps?: string[] }) {
+  const { step: currentKey, activity } = parseProgress(progress);
+  const current = STEPS.findIndex((s) => s.key === currentKey);
+  const finished = currentKey === "done" && !failed;
 
   return (
-    <div className="card w-80 text-left">
+    <div className="card w-full max-w-[26rem] text-left md:w-[26rem]">
       <ol>
         {STEPS.map((step, i) => {
           const done = finished || i < current;
@@ -51,7 +53,7 @@ export default function ProgressList({ progress, failed }: { progress: string; f
                 </span>
               </span>
 
-              <div className="min-w-0 flex min-h-8 items-center">
+              <div className="flex min-h-8 min-w-0 flex-1 flex-col justify-center">
                 <p
                   className={`font-medium transition-colors duration-500 ${
                     done
@@ -63,6 +65,11 @@ export default function ProgressList({ progress, failed }: { progress: string; f
                 >
                   {step.label}
                 </p>
+                {/* what the AI is doing right now, and every kubectl command it has chosen so far */}
+                {step.key === "ai" && active && activity && !activity.startsWith("kubectl ") && (
+                  <p className="text-xs text-slate-400">{activity}</p>
+                )}
+                {step.key === "ai" && active && <LiveCommands steps={steps} active />}
               </div>
             </li>
           );

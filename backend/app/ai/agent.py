@@ -1,11 +1,15 @@
 import json
 import re
+from collections.abc import Callable
 from typing import Any
 
 from loguru import logger
 
+from app.ai.claude_agent import run_agent
 from app.ai.llm_client import LLMError, chat_completion
+from app.ai.openai_agent import run_openai_agent
 from app.ai.prompt_builder import build_messages
+from app.core.config import get_settings
 from app.models.diagnosis import Diagnosis, Issue
 
 
@@ -190,7 +194,32 @@ def _is_all_healthy(inv: dict[str, Any]) -> bool:
     )
 
 
-def analyze_investigation(investigation: dict[str, Any]) -> Diagnosis:
+def _single_shot(investigation: dict[str, Any]) -> dict[str, Any]:
+    """One prompt with all the evidence (OpenAI-compatible providers such as OpenRouter)."""
+    messages = build_messages(investigation)
+    data = _parse_json(chat_completion(messages))
+    if not _issues(data):
+        # Free/small models sometimes return valid JSON without issues: ask once more, explicitly.
+        logger.warning("LLM returned no issues, retrying. Reply started with: {}", json.dumps(data)[:300])
+        messages = [*messages, {"role": "assistant", "content": json.dumps(data)}, {"role": "user", "content": RETRY_PROMPT}]
+        data = _parse_json(chat_completion(messages))
+    if not _issues(data):
+        logger.error("LLM returned no issues twice. Reply started with: {}", json.dumps(data)[:300])
+        raise LLMError("The AI did not return a usable diagnosis. Please try again.")
+    return data
+
+
+def _agent_runner() -> Callable[..., dict[str, Any]] | None:
+    """The step-by-step investigator to use, or None for the single-prompt flow."""
+    settings = get_settings()
+    if settings.agent_mode == "single":
+        return None
+    if settings.anthropic_api_key:
+        return run_agent
+    return run_openai_agent if settings.agent_mode == "loop" else None
+
+
+def analyze_investigation(investigation: dict[str, Any], on_step: Callable[[str], None] | None = None) -> Diagnosis:
     """Root cause + fix + confidence for the collected Kubernetes evidence."""
     if investigation["pods"].get("healthy") is None:
         raise ClusterUnreachable(investigation["pods"].get("error") or "Could not read the cluster.")
@@ -205,18 +234,22 @@ def analyze_investigation(investigation: dict[str, Any]) -> Diagnosis:
             confidence_reasoning=["No unhealthy pods", "Deployments available", "Services have endpoints"],
         )
 
-    messages = build_messages(investigation)
-    data = _parse_json(chat_completion(messages))
+    agent = _agent_runner()
+    if agent:
+        # The model investigates on its own with read-only kubectl, so an empty result is a considered answer.
+        data = agent(investigation, on_step)
+        if not _issues(data):
+            return Diagnosis(
+                root_cause="No critical Kubernetes issues detected",
+                explanation=str(data.get("summary") or "The AI investigated the cluster and found no real problems."),
+                fix="No action needed.",
+                confidence=85,
+                healthy=True,
+                summary=str(data.get("summary", "")),
+            )
+    else:
+        data = _single_shot(investigation)
     issues = _issues(data)
-    if not issues:
-        # Free/small models sometimes return valid JSON without issues: ask once more, explicitly.
-        logger.warning("LLM returned no issues, retrying. Reply started with: {}", json.dumps(data)[:300])
-        messages = [*messages, {"role": "assistant", "content": json.dumps(data)}, {"role": "user", "content": RETRY_PROMPT}]
-        data = _parse_json(chat_completion(messages))
-        issues = _issues(data)
-    if not issues:
-        logger.error("LLM returned no issues twice. Reply started with: {}", json.dumps(data)[:300])
-        raise LLMError("The AI did not return a usable diagnosis. Please try again.")
     for issue in issues:
         _prefer_in_place(issue, investigation)
         _prefer_selector_fix(issue, investigation)

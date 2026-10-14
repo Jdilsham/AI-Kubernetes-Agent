@@ -74,8 +74,8 @@ def _per_pod(inv: dict[str, Any]) -> list[dict[str, Any]]:
     return view
 
 
-def build_messages(investigation: dict[str, Any]) -> list[dict[str, str]]:
-    """Turn the investigation payload into chat messages for the LLM."""
+def build_evidence(investigation: dict[str, Any], limit: int = MAX_EVIDENCE_CHARS) -> str:
+    """The collected kubectl evidence as text for the prompt."""
     # Pod events are attached to their failing pod above. Events about pods that are healthy now
     # (rescheduled, recovered) are history, so only non-pod events are kept here.
     other_events = [e for e in investigation.get("events", {}).get("findings", []) if e.get("kind") != "Pod"]
@@ -89,10 +89,35 @@ def build_messages(investigation: dict[str, Any]) -> list[dict[str, str]]:
     }
     parts = [f"## {title}\n{json.dumps(data, indent=1, default=str)}" for title, data in sections.items()]
     evidence = "\n\n".join(parts)
-    if len(evidence) > MAX_EVIDENCE_CHARS:
-        evidence = evidence[:MAX_EVIDENCE_CHARS] + "\n...[evidence truncated]"
-    user = f"Analyze this Kubernetes evidence and return the JSON diagnosis.\n\n{evidence}"
+    if len(evidence) > limit:
+        evidence = evidence[:limit] + "\n...[evidence truncated]"
+    return evidence
+
+
+def build_messages(investigation: dict[str, Any]) -> list[dict[str, str]]:
+    """Turn the investigation payload into chat messages for the LLM."""
+    user = f"Analyze this Kubernetes evidence and return the JSON diagnosis.\n\n{build_evidence(investigation)}"
     return [
         {"role": "system", "content": SYSTEM_PROMPT},
         {"role": "user", "content": user},
     ]
+
+
+# The fix-quality rules are shared with the single-shot prompt; only the output instructions differ.
+_RULES = SYSTEM_PROMPT.split("Respond with ONLY")[0].split("Rules:", 1)[1]
+
+AGENT_SYSTEM_PROMPT = (
+    """You are a Senior Kubernetes SRE investigating a live cluster. You have a read-only `kubectl` tool and a first-look snapshot of the cluster collected by simple health checks. The snapshot shows symptoms; your job is to find the real root cause of each problem and a concrete fix.
+
+How to investigate:
+- Start from the snapshot, then dig in yourself with kubectl: describe the failing resource, read its logs (add --previous for crashes), check events, and follow what it depends on (Service and endpoints, ConfigMaps and Secrets by name, PVCs, nodes, owners, add-ons). Keep going until each problem is explained by evidence you actually saw, not by a guess.
+- The snapshot can miss problems and can be misleading. If something looks healthy but the cluster symptoms suggest otherwise, check it.
+- You may call several independent commands in one turn. Do not repeat a command you already ran. Prefer narrow commands (-n, label selectors, --tail, -o jsonpath) over dumping everything; long outputs are truncated.
+- If a command is rejected or fails, read the message and adapt. You cannot change the cluster: fixes are commands the user will run later. Secret values are not available to you; do not ask for them.
+- You have a limited number of kubectl commands. When every issue has a confirmed cause (or you have confirmed that the evidence cannot be obtained), call `submit_diagnosis` once with the final answer. Do not end without calling it.
+
+Rules for the diagnosis:"""
+    + _RULES
+    + """
+If the cluster has no real problems, call submit_diagnosis with an empty issues list and say so in the summary."""
+)

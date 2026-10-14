@@ -1,10 +1,17 @@
-# -- LLM used for the diagnosis: any OpenAI-compatible API (OpenRouter, OpenAI, Gemini, Ollama, vLLM, ...)
+# -- LLM used for the diagnosis.
+#    provider "openai-compatible": one prompt with all the evidence (OpenRouter, OpenAI, Gemini, Ollama, vLLM, ...)
+#    provider "anthropic":         Claude investigates in a loop with read-only kubectl and follows the evidence (recommended)
 llm:
-  baseUrl: https://openrouter.ai/api/v1
-  model: ""            # e.g. nvidia/nemotron-3-super-120b-a12b:free
+  provider: openai-compatible
+  baseUrl: https://openrouter.ai/api/v1   # openai-compatible only
+  model: ""            # openai-compatible: e.g. nvidia/nemotron-3-super-120b-a12b:free; anthropic: empty = claude-sonnet-5-5
   apiKey: ""           # stored in a Secret; or use existingSecret
   existingSecret: ""   # Secret with key `llm-api-key`
   timeoutSeconds: 120  # large clusters + free models can take over a minute
+  agent:
+    mode: auto         # auto = Claude loop with provider anthropic, one prompt otherwise; loop = step-by-step with any model that supports tool calling; single = one prompt
+    maxSteps: 15       # kubectl commands the AI may run per investigation (loop modes)
+    effort: medium     # anthropic only: low | medium | high, how hard it thinks per step (cost vs. depth)
 
 # -- Login for the web UI
 auth:

@@ -48,6 +48,19 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.auth.existingSecret | default (include "agent.secretName" .) }}
                   key: secret-key
+            {{- if eq .Values.llm.provider "anthropic" }}
+            {{- if .Values.llm.model }}
+            - name: ANTHROPIC_MODEL
+              value: {{ .Values.llm.model | quote }}
+            {{- end }}
+            - name: ANTHROPIC_API_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: {{ .Values.llm.existingSecret | default (include "agent.secretName" .) }}
+                  key: llm-api-key
+            - name: AGENT_EFFORT
+              value: {{ .Values.llm.agent.effort | quote }}
+            {{- else }}
             - name: OPENROUTER_BASE_URL
               value: {{ .Values.llm.baseUrl | quote }}
             - name: OPENROUTER_MODEL
@@ -57,6 +70,11 @@ spec:
                 secretKeyRef:
                   name: {{ .Values.llm.existingSecret | default (include "agent.secretName" .) }}
                   key: llm-api-key
+            {{- end }}
+            - name: AGENT_MODE
+              value: {{ .Values.llm.agent.mode | quote }}
+            - name: AGENT_MAX_STEPS
+              value: {{ .Values.llm.agent.maxSteps | quote }}
             - name: LLM_TIMEOUT_SECONDS
               value: {{ .Values.llm.timeoutSeconds | quote }}
             {{- if eq .Values.rbac.scope "namespace" }}

@@ -48,3 +48,40 @@ def test_history_roundtrip(client):
 def test_invalid_namespace_rejected(client):
     headers = {"Authorization": f"Bearer {_token(client)}"}
     assert client.post("/api/investigations", json={"namespace": "Bad NS!"}, headers=headers).status_code == 400
+
+
+def test_ai_commands_are_kept_with_the_investigation(client, monkeypatch):
+    from app.models.diagnosis import Diagnosis
+    from app.services import runner, store
+
+    def fake_analyze(data, on_step):
+        for step in ("ai|Reviewing the first-look results", "ai|kubectl describe pod a", "ai|Thinking about the results", "ai|kubectl logs a"):
+            on_step(step)
+        return Diagnosis(root_cause="x", explanation="e", fix="f", confidence=80)
+
+    row = store.create("in-cluster", None)
+    assert row["steps"] == []
+    monkeypatch.setattr(runner, "run_investigation", lambda on_step: {"pods": {"problematic_pods": []}})
+    monkeypatch.setattr(runner, "analyze_investigation", fake_analyze)
+    runner._run(row["id"], None, None)
+    done = store.get(row["id"])
+    # every command the AI chose is kept, in order, with the finished result
+    assert done["status"] == "success" and done["steps"] == ["kubectl describe pod a", "kubectl logs a"]
+
+
+def test_old_database_gets_the_steps_column(tmp_path, monkeypatch):
+    import sqlite3
+
+    from app.core import config
+    from app.services import store
+
+    db = sqlite3.connect(tmp_path / "agent.db")
+    db.execute("CREATE TABLE investigations (id TEXT PRIMARY KEY, status TEXT NOT NULL DEFAULT 'running', progress TEXT NOT NULL DEFAULT 'starting',"
+               " cluster TEXT, scope TEXT, namespace TEXT, root_cause TEXT, confidence INTEGER, diagnosis TEXT, error TEXT, created_at TEXT NOT NULL)")
+    db.execute("INSERT INTO investigations (id, created_at) VALUES ('old', '2026-01-01')")
+    db.commit()
+    db.close()
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    config.get_settings.cache_clear()
+    monkeypatch.setattr(store, "_conn", None)
+    assert store.get("old")["steps"] == []

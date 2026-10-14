@@ -12,6 +12,7 @@ import {
 } from "../services/api";
 import type { Diagnosis, InvestigationRow } from "../types/investigation";
 import ClusterPicker from "./ClusterPicker";
+import CommandTrail from "./CommandTrail";
 import DiagnosisCard from "./DiagnosisCard";
 import ProgressList from "./ProgressList";
 import ProgressRing from "./ProgressRing";
@@ -20,6 +21,7 @@ export default function InvestigateButton() {
   const queryClient = useQueryClient();
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState("");
+  const [steps, setSteps] = useState<string[]>([]);
   const [diagnosis, setDiagnosis] = useState<Diagnosis | null>(null);
   const [error, setError] = useState("");
   const [selected, setSelected] = useState<string | null>(null);
@@ -43,6 +45,7 @@ export default function InvestigateButton() {
   function applyRow(row: InvestigationRow) {
     if (row.id !== currentId.current) return;
     if (row.progress) setProgress(row.progress);
+    if (row.steps) setSteps(row.steps);
     if (row.diagnosis) setDiagnosis(row.diagnosis);
     if (row.status !== "running") {
       if (row.status === "cancelled") setProgress("");
@@ -80,6 +83,7 @@ export default function InvestigateButton() {
     setRunning(true);
     setError("");
     setDiagnosis(null);
+    setSteps([]);
     setProgress("starting");
     try {
       const row = await startInvestigation(cluster, locked ?? namespace);
@@ -126,7 +130,7 @@ export default function InvestigateButton() {
             </button>
           )}
         </div>
-        {progress && <ProgressList progress={progress} failed={!!error} />}
+        {progress && <ProgressList progress={progress} failed={!!error} steps={steps} />}
       </div>
       {error && (
         <p className="animate-slide-in max-w-xl whitespace-pre-line rounded-xl border border-red-500/30 bg-red-500/10 px-5 py-3 text-left text-sm text-red-300">
@@ -139,6 +143,11 @@ export default function InvestigateButton() {
         </p>
       )}
       {diagnosis && <DiagnosisCard diagnosis={diagnosis} />}
+      {!running && steps.length > 0 && (
+        <div className="w-full">
+          <CommandTrail steps={steps} />
+        </div>
+      )}
     </div>
   );
 }

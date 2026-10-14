@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import { createPortal } from "react-dom";
 
 import type { InvestigationRow } from "../types/investigation";
+import CommandTrail from "./CommandTrail";
 import DiagnosisCard from "./DiagnosisCard";
 
 interface Props {
@@ -63,6 +64,7 @@ export default function InvestigationDetail({ row, loading, onClose }: Props) {
             ) : (
               !row.error && <p className="text-slate-400">No diagnosis was recorded for this investigation.</p>
             )}
+            <CommandTrail steps={row.steps ?? []} />
           </>
         )}
       </div>

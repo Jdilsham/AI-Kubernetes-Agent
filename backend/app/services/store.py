@@ -12,7 +12,8 @@ from app.core.config import get_settings
 
 _lock = threading.Lock()
 _conn: sqlite3.Connection | None = None
-COLUMNS = ("id", "status", "progress", "cluster", "scope", "namespace", "root_cause", "confidence", "diagnosis", "error", "created_at")
+COLUMNS = ("id", "status", "progress", "cluster", "scope", "namespace", "root_cause", "confidence", "diagnosis", "error", "created_at", "steps")
+JSON_COLUMNS = ("diagnosis", "steps")
 
 
 def _db() -> sqlite3.Connection:
@@ -32,6 +33,8 @@ def _db() -> sqlite3.Connection:
                 confidence INTEGER, diagnosis TEXT, error TEXT,
                 created_at TEXT NOT NULL)"""
         )
+        if "steps" not in {r["name"] for r in _conn.execute("PRAGMA table_info(investigations)")}:
+            _conn.execute("ALTER TABLE investigations ADD COLUMN steps TEXT")  # kubectl commands the AI ran (older databases)
         _conn.execute("CREATE INDEX IF NOT EXISTS investigations_created ON investigations (created_at DESC)")
         _conn.commit()
     return _conn
@@ -42,6 +45,7 @@ def _row(row: sqlite3.Row | None) -> dict[str, Any] | None:
         return None
     data = dict(row)
     data["diagnosis"] = json.loads(data["diagnosis"]) if data.get("diagnosis") else None
+    data["steps"] = json.loads(data["steps"]) if data.get("steps") else []
     return data
 
 
@@ -57,7 +61,7 @@ def create(cluster: str | None, scope: str | None) -> dict[str, Any]:
 
 
 def update(row_id: str, fields: dict[str, Any]) -> None:
-    fields = {k: (json.dumps(v) if k == "diagnosis" and v is not None else v) for k, v in fields.items() if k in COLUMNS}
+    fields = {k: (json.dumps(v) if k in JSON_COLUMNS and v is not None else v) for k, v in fields.items() if k in COLUMNS}
     if not fields:
         return
     with _lock:
